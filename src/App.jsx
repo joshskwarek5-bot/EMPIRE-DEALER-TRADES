@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import jsPDF from "jspdf";
 
 const FIELDS = {
   tradeDate: '', manager: '', oursTheirs: 'Theirs', sellingCA: 'Josh',
@@ -77,8 +78,233 @@ export default function DealerTradeApp() {
     setEditingIdx(null);
   };
 
+  const buildPDF = (d = form) => {
+    const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+    const W = doc.internal.pageSize.getWidth();
+    const margin = 40;
+    const colW = (W - margin * 2 - 20) / 2;
+    let y = 0;
+
+    // ── helpers ──────────────────────────────────────────────────────────────
+    const accent  = [37, 99, 235];   // blue
+    const outRed  = [220, 38, 38];
+    const inGreen = [22, 163, 74];
+    const amber   = [217, 119, 6];
+    const dark    = [15, 23, 42];
+    const mid     = [107, 114, 128];
+    const light   = [241, 245, 249];
+    const white   = [255, 255, 255];
+
+    const rgb = (arr) => ({ r: arr[0], g: arr[1], b: arr[2] });
+
+    const sectionHeader = (label, color) => {
+      doc.setFillColor(...color);
+      doc.roundedRect(margin, y, W - margin * 2, 24, 4, 4, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(...white);
+      doc.text(label.toUpperCase(), margin + 10, y + 15.5);
+      y += 32;
+    };
+
+    const rowPair = (pairs, xStart, yStart, colWidth) => {
+      let rx = xStart;
+      let ry = yStart;
+      pairs.forEach(([lbl, val], i) => {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(...mid);
+        doc.text(lbl.toUpperCase(), rx, ry);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.setTextColor(...dark);
+        doc.text(val || '—', rx, ry + 12);
+        rx += colWidth;
+        if (i % 2 === 1) { rx = xStart; ry += 30; }
+      });
+      return ry + (pairs.length % 2 !== 0 ? 30 : 0);
+    };
+
+    const vehicleBlock = (title, titleColor, fields, x, yTop) => {
+      const bH = 210;
+      doc.setFillColor(titleColor[0] === 220 ? 254 : 240,
+                       titleColor[0] === 220 ? 242 : 253,
+                       titleColor[0] === 220 ? 242 : 244);
+      doc.setDrawColor(...titleColor);
+      doc.roundedRect(x, yTop, colW, bH, 6, 6, 'FD');
+
+      // pill label
+      doc.setFillColor(...titleColor);
+      doc.roundedRect(x + 10, yTop - 8, 64, 16, 8, 8, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7);
+      doc.setTextColor(...white);
+      doc.text(title, x + 14, yTop + 4);
+
+      let vy = yTop + 22;
+      const colHalf = colW / 2 - 6;
+
+      fields.forEach(([lbl, val, wide]) => {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.setTextColor(...mid);
+        doc.text(lbl.toUpperCase(), x + 10, vy);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9.5);
+        doc.setTextColor(...dark);
+        doc.text(val || '—', x + 10, vy + 11);
+        vy += wide ? 26 : 26;
+      });
+    };
+
+    // ── HEADER ────────────────────────────────────────────────────────────────
+    doc.setFillColor(...dark);
+    doc.rect(0, 0, W, 64, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(20);
+    doc.setTextColor(...white);
+    doc.text('DEALER TRADE FORM', margin, 38);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(148, 163, 184);
+    doc.text('Empire Lakewood Nissan', margin, 54);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(148, 163, 184);
+    doc.text(`Date: ${d.tradeDate}`, W - margin, 38, { align: 'right' });
+    y = 80;
+
+    // ── TRADE INFO ────────────────────────────────────────────────────────────
+    sectionHeader('Trade Info', accent);
+    const infoFields = [
+      ['Manager', d.manager],
+      ['Ours / Theirs', d.oursTheirs],
+      ['Selling CA', d.sellingCA],
+      ['Dealer Name', d.dealerName],
+      ['Contact', d.dealerContact],
+      ['Dealer Code', d.dealerCode],
+    ];
+    const colW3 = (W - margin * 2) / 3;
+    infoFields.forEach(([lbl, val], i) => {
+      const cx = margin + (i % 3) * colW3;
+      const cy = y + Math.floor(i / 3) * 34;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(...mid);
+      doc.text(lbl.toUpperCase(), cx, cy);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(...dark);
+      doc.text(val || '—', cx, cy + 13);
+    });
+    y += Math.ceil(infoFields.length / 3) * 34 + 10;
+
+    // ── VEHICLES ──────────────────────────────────────────────────────────────
+    sectionHeader('Vehicles', [234, 88, 12]);
+    const outFields = [
+      ['Stock #', d.outStock],
+      ['Year', d.outYear],
+      ['Model', d.outModel, true],
+      ['Trim', d.outTrim, true],
+      ['Color', d.outColor],
+      ['VIN', d.outVIN, true],
+      ['Invoice', d.outInvoice ? `$${d.outInvoice}` : ''],
+      ['Holdback', d.outHoldback ? `$${d.outHoldback}` : ''],
+    ];
+    const inFields = [
+      ['Stock #', d.inStock],
+      ['Year', d.inYear],
+      ['Model', d.inModel, true],
+      ['Trim', d.inTrim, true],
+      ['Color', d.inColor],
+      ['VIN', d.inVIN, true],
+      ['Invoice', d.inInvoice ? `$${d.inInvoice}` : ''],
+      ['Holdback', d.inHoldback ? `$${d.inHoldback}` : ''],
+    ];
+    vehicleBlock('OUTGOING', outRed, outFields, margin, y);
+    vehicleBlock('INCOMING', inGreen, inFields, margin + colW + 20, y);
+    y += 220;
+
+    // settlement diff banner
+    const diffVal = (parseNum(d.inInvoice) - parseNum(d.inHoldback) + parseNum(d.inAccessories))
+                  - (parseNum(d.outInvoice) - parseNum(d.outHoldback) + parseNum(d.outAccessories));
+    const diffColor = diffVal > 0 ? outRed : diffVal < 0 ? inGreen : mid;
+    doc.setFillColor(...light);
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(margin, y, W - margin * 2, 38, 6, 6, 'FD');
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(...mid);
+    doc.text('SETTLEMENT DIFFERENCE', margin + 12, y + 13);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(15);
+    doc.setTextColor(...diffColor);
+    doc.text(fmtCurrency(diffVal), margin + 12, y + 29);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(...mid);
+    const diffNote = diffVal > 0
+      ? `We owe them ${fmtCurrency(diffVal)}`
+      : diffVal < 0 ? `They owe us ${fmtCurrency(diffVal)}` : 'Even trade';
+    doc.text(diffNote, W - margin - 12, y + 22, { align: 'right' });
+    y += 50;
+
+    // ── SETTLEMENT ────────────────────────────────────────────────────────────
+    sectionHeader('Settlement', amber);
+    [[outRed, 'OUTGOING CHECK', d.outCheck ? `$${d.outCheck}` : '—'],
+     [inGreen, 'INCOMING CHECK', d.inCheck ? `$${d.inCheck}` : '—']
+    ].forEach(([color, label, val], i) => {
+      const bx = margin + i * (colW + 20);
+      doc.setFillColor(color[0] === 220 ? 254 : 240,
+                       color[0] === 220 ? 242 : 253,
+                       color[0] === 220 ? 242 : 244);
+      doc.setDrawColor(...color);
+      doc.roundedRect(bx, y, colW, 42, 6, 6, 'FD');
+      doc.setFillColor(...color);
+      doc.roundedRect(bx + 10, y + 10, 52, 22, 5, 5, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(...white);
+      doc.text('CHECK', bx + 14, y + 24);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.setTextColor(...dark);
+      doc.text(val, bx + 74, y + 27);
+    });
+    y += 56;
+
+    // ── NOTES ─────────────────────────────────────────────────────────────────
+    if (d.notes) {
+      sectionHeader('Notes / Comments', [107, 114, 128]);
+      doc.setFillColor(249, 250, 251);
+      doc.setDrawColor(229, 231, 235);
+      doc.roundedRect(margin, y, W - margin * 2, 54, 6, 6, 'FD');
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(...dark);
+      const lines = doc.splitTextToSize(d.notes, W - margin * 2 - 20);
+      doc.text(lines, margin + 10, y + 16);
+      y += 64;
+    }
+
+    // ── FOOTER ────────────────────────────────────────────────────────────────
+    const pageH = doc.internal.pageSize.getHeight();
+    doc.setFillColor(...light);
+    doc.rect(0, pageH - 28, W, 28, 'F');
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(...mid);
+    doc.text('Empire Lakewood Nissan — Dealer Trade Form', margin, pageH - 10);
+    doc.text(`Generated ${d.tradeDate}`, W - margin, pageH - 10, { align: 'right' });
+
+    const filename = `dealer-trade_${d.tradeDate}_${(d.outModel || 'OUT').replace(/\s+/g,'-')}_${(d.inModel || 'IN').replace(/\s+/g,'-')}.pdf`;
+    doc.save(filename);
+    return filename;
+  };
+
   const buildEmail = () => {
     const d = form;
+    buildPDF(d);
     const subject = `Dealer Trade: ${d.outYear} ${d.outModel} ${d.outTrim} <> ${d.inYear} ${d.inModel} ${d.inTrim} | ${d.tradeDate}`;
     const body = [
       `DEALER TRADE FORM`,
@@ -97,10 +323,12 @@ export default function DealerTradeApp() {
       `VIN: ${d.inVIN}`,
       `Invoice: $${d.inInvoice}  |  Holdback: $${d.inHoldback}  |  Accessories: $${d.inAccessories}`,
       `CHECK: $${d.inCheck}`,
-      d.notes ? `\nNOTES: ${d.notes}` : ''
-    ].filter(Boolean).join('\n');
+      d.notes ? `\nNOTES: ${d.notes}` : '',
+      ``,
+      `(PDF attachment downloaded to your device — please attach before sending)`
+    ].filter(l => l !== undefined).join('\n');
     window.open(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_self');
-    showToast('Opening email...');
+    showToast('PDF downloaded — email opening...');
   };
 
   const inp = (key, placeholder, mono, type) => (
