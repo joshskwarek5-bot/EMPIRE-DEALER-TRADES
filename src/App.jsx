@@ -160,6 +160,7 @@ export default function DealerTradeApp() {
     try {
       const parsed = await parseInvoicePDF(file);
 
+      // Upload to Convex storage (non-blocking — don't fail parse if this fails)
       let storageId;
       try {
         const uploadUrl = await generateUploadUrl();
@@ -173,30 +174,37 @@ export default function DealerTradeApp() {
         console.warn("Convex storage upload failed:", e);
       }
 
+      const filled = [];
       setForm((prev) => {
         const u = {};
         const p = side === "out";
-        if (parsed.vin)          u[p ? "outVIN"   : "inVIN"]   = parsed.vin;
-        if (parsed.stock)        u[p ? "outStock" : "inStock"] = parsed.stock;
-        if (parsed.year)         u[p ? "outYear"  : "inYear"]  = parsed.year;
-        if (parsed.model)        u[p ? "outModel" : "inModel"] = parsed.model;
-        if (parsed.trim)         u[p ? "outTrim"  : "inTrim"]  = parsed.trim;
-        if (parsed.color)        u[p ? "outColor" : "inColor"] = parsed.color;
-        if (parsed.invoicePrice) u[p ? "outInvoice" : "inInvoice"] = parsed.invoicePrice;
+        if (parsed.vin)          { u[p?"outVIN":"inVIN"]     = parsed.vin;          filled.push("VIN"); }
+        if (parsed.stock)        { u[p?"outStock":"inStock"]  = parsed.stock;        filled.push("Stock"); }
+        if (parsed.year)         { u[p?"outYear":"inYear"]    = parsed.year;         filled.push("Year"); }
+        if (parsed.model)        { u[p?"outModel":"inModel"]  = parsed.model;        filled.push("Model"); }
+        if (parsed.trim)         { u[p?"outTrim":"inTrim"]    = parsed.trim;         filled.push("Trim"); }
+        if (parsed.color)        { u[p?"outColor":"inColor"]  = parsed.color;        filled.push("Color"); }
+        if (parsed.invoicePrice) { u[p?"outInvoice":"inInvoice"] = parsed.invoicePrice; filled.push("Invoice"); }
         if (parsed.collectionsHoldback) {
-          u[p ? "outCollectionsHoldback" : "inCollectionsHoldback"] = parsed.collectionsHoldback;
-          u[p ? "outHasCollections"      : "inHasCollections"]      = true;
+          u[p?"outCollectionsHoldback":"inCollectionsHoldback"] = parsed.collectionsHoldback;
+          u[p?"outHasCollections":"inHasCollections"]           = true;
+          filled.push("Collections HB");
         } else if (parsed.holdback) {
-          u[p ? "outHoldback" : "inHoldback"] = parsed.holdback;
+          u[p?"outHoldback":"inHoldback"] = parsed.holdback;
+          filled.push("Holdback");
         }
-        if (storageId) u[p ? "outInvoiceStorageId" : "inInvoiceStorageId"] = storageId;
+        if (storageId) u[p?"outInvoiceStorageId":"inInvoiceStorageId"] = storageId;
         return { ...prev, ...u };
       });
 
-      showToast("Invoice parsed — fields auto-filled");
+      if (filled.length > 0) {
+        showToast(`Filled: ${filled.join(", ")}`);
+      } else {
+        showToast("PDF parsed but no fields found — fill manually", true);
+      }
     } catch (e) {
-      console.error(e);
-      showToast("Could not parse PDF — fill fields manually", true);
+      console.error("PDF parse error:", e);
+      showToast(`Parse error: ${e.message || "unknown error"}`, true);
     } finally {
       setParsing((p) => ({ ...p, [side]: false }));
     }
