@@ -19,7 +19,7 @@ const today = () => {
 
 const calcCheck = (invoice, holdback, collectionsHoldback, hasCollections) => {
   if (hasCollections && collectionsHoldback && parseNum(collectionsHoldback) > 0) {
-    return parseNum(invoice) - 3 * parseNum(collectionsHoldback);
+    return parseNum(invoice) - 2 * parseNum(collectionsHoldback);
   }
   return parseNum(invoice) - parseNum(holdback);
 };
@@ -97,7 +97,7 @@ function CollectionsToggle({ side, form, onChange, check }) {
             />
           </Field>
           {form[chKey] && parseNum(form[chKey]) > 0 && (
-            <div style={s.chFormula}>×3 = {fmtCurrency(3 * parseNum(form[chKey]))}</div>
+            <div style={s.chFormula}>×2 = {fmtCurrency(2 * parseNum(form[chKey]))}</div>
           )}
         </div>
       ) : (
@@ -325,7 +325,7 @@ export default function DealerTradeApp() {
       ["Trim", d.outTrim], ["VIN", d.outVIN],
       ["Invoice", d.outInvoice ? `$${d.outInvoice}` : ""],
       d.outHasCollections && d.outCollectionsHoldback
-        ? ["Collections HB ×3", `$${d.outCollectionsHoldback} × 3 = ${fmtCurrency(3*parseNum(d.outCollectionsHoldback))}`]
+        ? ["Collections HB ×2", `$${d.outCollectionsHoldback} × 2 = ${fmtCurrency(2*parseNum(d.outCollectionsHoldback))}`]
         : ["Holdback", d.outHoldback ? `$${d.outHoldback}` : ""],
     ];
     const inFields = [
@@ -333,25 +333,12 @@ export default function DealerTradeApp() {
       ["Trim", d.inTrim], ["VIN", d.inVIN],
       ["Invoice", d.inInvoice ? `$${d.inInvoice}` : ""],
       d.inHasCollections && d.inCollectionsHoldback
-        ? ["Collections HB ×3", `$${d.inCollectionsHoldback} × 3 = ${fmtCurrency(3*parseNum(d.inCollectionsHoldback))}`]
+        ? ["Collections HB ×2", `$${d.inCollectionsHoldback} × 2 = ${fmtCurrency(2*parseNum(d.inCollectionsHoldback))}`]
         : ["Holdback", d.inHoldback ? `$${d.inHoldback}` : ""],
     ];
     const outH = vehicleBlock("OUTGOING", outRed, outFields, margin, y);
     const inH  = vehicleBlock("INCOMING", inGreen, inFields, margin+colW+20, y);
     y += Math.max(outH, inH) + 14;
-
-    // DIFF
-    const diffVal = iCheck - oCheck;
-    const diffColor = diffVal>0 ? outRed : diffVal<0 ? inGreen : mid;
-    doc.setFillColor(...light); doc.setDrawColor(226,232,240);
-    doc.roundedRect(margin, y, W-margin*2, 36, 6, 6, "FD");
-    doc.setFont("helvetica","normal"); doc.setFontSize(7); doc.setTextColor(...mid);
-    doc.text("SETTLEMENT DIFFERENCE", margin+10, y+12);
-    doc.setFont("helvetica","bold"); doc.setFontSize(14); doc.setTextColor(...diffColor);
-    doc.text(fmtCurrency(diffVal), margin+10, y+27);
-    doc.setFont("helvetica","normal"); doc.setFontSize(8.5); doc.setTextColor(...mid);
-    doc.text(diffVal>0?`We owe them ${fmtCurrency(diffVal)}`:diffVal<0?`They owe us ${fmtCurrency(Math.abs(diffVal))}`:"Even trade", W-margin-10, y+22, { align:"right" });
-    y += 46;
 
     // CHECKS
     sectionHeader("Settlement — Net Checks", amber);
@@ -367,7 +354,7 @@ export default function DealerTradeApp() {
       doc.text(fmtCurrency(checkAmt), bx+70, y+25);
       doc.setFont("helvetica","normal"); doc.setFontSize(7); doc.setTextColor(...mid);
       const formula = hasCol && colHB && parseNum(colHB)>0
-        ? `$${invoice} − 3 × $${colHB} (Collections HB)`
+        ? `$${invoice} − 2 × $${colHB} (Collections HB)`
         : holdback ? `$${invoice} − $${holdback} (Holdback)` : "";
       if (formula) doc.text(doc.splitTextToSize(formula, colW-18), bx+8, y+46);
     };
@@ -435,10 +422,10 @@ export default function DealerTradeApp() {
       `Manager: ${d.manager}  |  Ours/Theirs: ${d.oursTheirs}`,
       `Dealer: ${d.dealerName}  |  Contact: ${d.dealerContact}  |  Code: ${d.dealerCode}`,``,
       `--- OUTGOING ---`,`Stock: ${d.outStock}  |  ${d.outYear} ${d.outModel} ${d.outTrim}`,`VIN: ${d.outVIN}`,
-      d.outHasCollections&&d.outCollectionsHoldback?`Collections HB: $${d.outCollectionsHoldback} × 3 = ${fmtCurrency(3*parseNum(d.outCollectionsHoldback))}`:`Holdback: $${d.outHoldback}`,
+      d.outHasCollections&&d.outCollectionsHoldback?`Collections HB: $${d.outCollectionsHoldback} × 2 = ${fmtCurrency(2*parseNum(d.outCollectionsHoldback))}`:`Holdback: $${d.outHoldback}`,
       `Invoice: $${d.outInvoice}`,`NET CHECK: ${fmtCurrency(oC)}`,``,
       `--- INCOMING ---`,`Stock: ${d.inStock}  |  ${d.inYear} ${d.inModel} ${d.inTrim}`,`VIN: ${d.inVIN}`,
-      d.inHasCollections&&d.inCollectionsHoldback?`Collections HB: $${d.inCollectionsHoldback} × 3 = ${fmtCurrency(3*parseNum(d.inCollectionsHoldback))}`:`Holdback: $${d.inHoldback}`,
+      d.inHasCollections&&d.inCollectionsHoldback?`Collections HB: $${d.inCollectionsHoldback} × 2 = ${fmtCurrency(2*parseNum(d.inCollectionsHoldback))}`:`Holdback: $${d.inHoldback}`,
       `Invoice: $${d.inInvoice}`,`NET CHECK: ${fmtCurrency(iC)}`,
       d.notes?`\nNOTES: ${d.notes}`:"",``,`(Attach the downloaded PDFs before sending)`,
     ].filter(Boolean).join("\n");
@@ -463,10 +450,10 @@ export default function DealerTradeApp() {
         `Manager: ${d.manager}  |  Ours/Theirs: ${d.oursTheirs}`,
         `Dealer: ${d.dealerName}  |  Contact: ${d.dealerContact}  |  Code: ${d.dealerCode}`,``,
         `--- OUTGOING ---`,`Stock: ${d.outStock}  |  ${d.outYear} ${d.outModel} ${d.outTrim}`,`VIN: ${d.outVIN}`,
-        d.outHasCollections&&d.outCollectionsHoldback?`Collections HB: $${d.outCollectionsHoldback} × 3 = ${fmtCurrency(3*parseNum(d.outCollectionsHoldback))}`:`Holdback: $${d.outHoldback}`,
+        d.outHasCollections&&d.outCollectionsHoldback?`Collections HB: $${d.outCollectionsHoldback} × 2 = ${fmtCurrency(2*parseNum(d.outCollectionsHoldback))}`:`Holdback: $${d.outHoldback}`,
         `Invoice: $${d.outInvoice}`,`NET CHECK: ${fmtCurrency(oC)}`,``,
         `--- INCOMING ---`,`Stock: ${d.inStock}  |  ${d.inYear} ${d.inModel} ${d.inTrim}`,`VIN: ${d.inVIN}`,
-        d.inHasCollections&&d.inCollectionsHoldback?`Collections HB: $${d.inCollectionsHoldback} × 3 = ${fmtCurrency(3*parseNum(d.inCollectionsHoldback))}`:`Holdback: $${d.inHoldback}`,
+        d.inHasCollections&&d.inCollectionsHoldback?`Collections HB: $${d.inCollectionsHoldback} × 2 = ${fmtCurrency(2*parseNum(d.inCollectionsHoldback))}`:`Holdback: $${d.inHoldback}`,
         `Invoice: $${d.inInvoice}`,`NET CHECK: ${fmtCurrency(iC)}`,
         d.notes?`\nNOTES: ${d.notes}`:"",
       ].filter(Boolean).join("\n");
@@ -597,18 +584,6 @@ export default function DealerTradeApp() {
           </div>
         </div>
 
-        {/* Diff */}
-        <div style={s.diffBox}>
-          <div>
-            <div style={s.diffLabel}>SETTLEMENT DIFFERENCE</div>
-            <div style={{ fontFamily:"'JetBrains Mono',monospace", fontWeight:700, fontSize:22, color:diff>0?"#dc2626":diff<0?"#16a34a":"#9ca3af" }}>
-              {fmtCurrency(diff)}
-            </div>
-          </div>
-          <div style={{ fontSize:12, color:"#6b7280" }}>
-            {diff>0?`We owe them ${fmtCurrency(diff)}`:diff<0?`They owe us ${fmtCurrency(Math.abs(diff))}`:"Even trade"}
-          </div>
-        </div>
       </div>
 
       {/* Settlement */}
@@ -623,7 +598,7 @@ export default function DealerTradeApp() {
                 {parseNum(form.outInvoice)>0 ? fmtCurrency(outCheck) : "—"}
               </div>
               <div style={{ fontSize:10, color:"#9ca3af", marginTop:2 }}>
-                {form.outHasCollections&&form.outCollectionsHoldback?`$${form.outInvoice} − 3×$${form.outCollectionsHoldback}`:form.outHoldback?`$${form.outInvoice} − $${form.outHoldback}`:""}
+                {form.outHasCollections&&form.outCollectionsHoldback?`$${form.outInvoice} − 2×$${form.outCollectionsHoldback}`:form.outHoldback?`$${form.outInvoice} − $${form.outHoldback}`:""}
               </div>
             </div>
           </div>
@@ -635,7 +610,7 @@ export default function DealerTradeApp() {
                 {parseNum(form.inInvoice)>0 ? fmtCurrency(inCheck) : "—"}
               </div>
               <div style={{ fontSize:10, color:"#9ca3af", marginTop:2 }}>
-                {form.inHasCollections&&form.inCollectionsHoldback?`$${form.inInvoice} − 3×$${form.inCollectionsHoldback}`:form.inHoldback?`$${form.inInvoice} − $${form.inHoldback}`:""}
+                {form.inHasCollections&&form.inCollectionsHoldback?`$${form.inInvoice} − 2×$${form.inCollectionsHoldback}`:form.inHoldback?`$${form.inInvoice} − $${form.inHoldback}`:""}
               </div>
             </div>
           </div>
