@@ -183,7 +183,6 @@ export default function DealerTradeApp() {
         if (parsed.year)         { u[p?"outYear":"inYear"]    = parsed.year;         filled.push("Year"); }
         if (parsed.model)        { u[p?"outModel":"inModel"]  = parsed.model;        filled.push("Model"); }
         if (parsed.trim)         { u[p?"outTrim":"inTrim"]    = parsed.trim;         filled.push("Trim"); }
-        if (parsed.color)        { u[p?"outColor":"inColor"]  = parsed.color;        filled.push("Color"); }
         if (parsed.invoicePrice) { u[p?"outInvoice":"inInvoice"] = parsed.invoicePrice; filled.push("Invoice"); }
         if (parsed.collectionsHoldback) {
           u[p?"outCollectionsHoldback":"inCollectionsHoldback"] = parsed.collectionsHoldback;
@@ -320,7 +319,7 @@ export default function DealerTradeApp() {
     sectionHeader("Vehicles", [234,88,12]);
     const outFields = [
       ["Stock #", d.outStock], ["Year / Model", `${d.outYear} ${d.outModel}`],
-      ["Trim", d.outTrim], ["Color", d.outColor], ["VIN", d.outVIN],
+      ["Trim", d.outTrim], ["VIN", d.outVIN],
       ["Invoice", d.outInvoice ? `$${d.outInvoice}` : ""],
       d.outHasCollections && d.outCollectionsHoldback
         ? ["Collections HB ×3", `$${d.outCollectionsHoldback} × 3 = ${fmtCurrency(3*parseNum(d.outCollectionsHoldback))}`]
@@ -328,7 +327,7 @@ export default function DealerTradeApp() {
     ];
     const inFields = [
       ["Stock #", d.inStock], ["Year / Model", `${d.inYear} ${d.inModel}`],
-      ["Trim", d.inTrim], ["Color", d.inColor], ["VIN", d.inVIN],
+      ["Trim", d.inTrim], ["VIN", d.inVIN],
       ["Invoice", d.inInvoice ? `$${d.inInvoice}` : ""],
       d.inHasCollections && d.inCollectionsHoldback
         ? ["Collections HB ×3", `$${d.inCollectionsHoldback} × 3 = ${fmtCurrency(3*parseNum(d.inCollectionsHoldback))}`]
@@ -413,10 +412,10 @@ export default function DealerTradeApp() {
       `DEALER TRADE FORM — Empire Lakewood Nissan`,`Date: ${d.tradeDate}`,
       `Manager: ${d.manager}  |  Ours/Theirs: ${d.oursTheirs}`,
       `Dealer: ${d.dealerName}  |  Contact: ${d.dealerContact}  |  Code: ${d.dealerCode}`,``,
-      `--- OUTGOING ---`,`Stock: ${d.outStock}  |  ${d.outYear} ${d.outModel} ${d.outTrim}  |  Color: ${d.outColor}`,`VIN: ${d.outVIN}`,
+      `--- OUTGOING ---`,`Stock: ${d.outStock}  |  ${d.outYear} ${d.outModel} ${d.outTrim}`,`VIN: ${d.outVIN}`,
       d.outHasCollections&&d.outCollectionsHoldback?`Collections HB: $${d.outCollectionsHoldback} × 3 = ${fmtCurrency(3*parseNum(d.outCollectionsHoldback))}`:`Holdback: $${d.outHoldback}`,
       `Invoice: $${d.outInvoice}`,`NET CHECK: ${fmtCurrency(oC)}`,``,
-      `--- INCOMING ---`,`Stock: ${d.inStock}  |  ${d.inYear} ${d.inModel} ${d.inTrim}  |  Color: ${d.inColor}`,`VIN: ${d.inVIN}`,
+      `--- INCOMING ---`,`Stock: ${d.inStock}  |  ${d.inYear} ${d.inModel} ${d.inTrim}`,`VIN: ${d.inVIN}`,
       d.inHasCollections&&d.inCollectionsHoldback?`Collections HB: $${d.inCollectionsHoldback} × 3 = ${fmtCurrency(3*parseNum(d.inCollectionsHoldback))}`:`Holdback: $${d.inHoldback}`,
       `Invoice: $${d.inInvoice}`,`NET CHECK: ${fmtCurrency(iC)}`,
       d.notes?`\nNOTES: ${d.notes}`:"",``,`(Attach the downloaded PDFs before sending)`,
@@ -487,7 +486,6 @@ export default function DealerTradeApp() {
               </div>
               <div style={s.grid2Inner}>
                 <Field label="Trim">{inp("outTrim","Dark Armor")}</Field>
-                <Field label="Color">{inp("outColor","Blue")}</Field>
               </div>
               <Field label="VIN">{inp("outVIN","5N1BT3BB7TC740725",true)}</Field>
               <Field label="Invoice (Pay This Amount)">{inp("outInvoice","36150.00",true)}</Field>
@@ -508,7 +506,6 @@ export default function DealerTradeApp() {
               </div>
               <div style={s.grid2Inner}>
                 <Field label="Trim">{inp("inTrim","Platinum")}</Field>
-                <Field label="Color">{inp("inColor","Gray")}</Field>
               </div>
               <Field label="VIN">{inp("inVIN","JN8BT3DD1TW312462",true)}</Field>
               <Field label="Invoice (Pay This Amount)">{inp("inInvoice","39809.00",true)}</Field>
@@ -599,11 +596,11 @@ export default function DealerTradeApp() {
             <div style={{ display:"flex", gap:16, flexWrap:"wrap", flex:1, minWidth:0 }}>
               <div>
                 <div style={{ fontWeight:600, fontSize:13, color:"#dc2626" }}>OUT: {t.outYear} {t.outModel} {t.outTrim}</div>
-                <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:11, color:"#9ca3af" }}>{t.outStock||"No stock #"} | {t.outColor}</div>
+                <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:11, color:"#9ca3af" }}>{t.outStock||"No stock #"}</div>
               </div>
               <div>
                 <div style={{ fontWeight:600, fontSize:13, color:"#16a34a" }}>IN: {t.inYear} {t.inModel} {t.inTrim}</div>
-                <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:11, color:"#9ca3af" }}>{t.inStock||"No stock #"} | {t.inColor}</div>
+                <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:11, color:"#9ca3af" }}>{t.inStock||"No stock #"}</div>
               </div>
               <div style={{ fontSize:11, color:"#6b7280", alignSelf:"center" }}>{t.tradeDate}</div>
             </div>
