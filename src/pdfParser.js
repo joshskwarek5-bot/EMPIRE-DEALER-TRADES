@@ -158,11 +158,9 @@ export async function parseInvoicePDF(file) {
     if (val && parseFloat(val) > 1000) { result.invoicePrice = val; break; }
   }
 
-  // DEBUG — log last 1000 chars so we can see the holdback label format
-  console.log("PDF BOTTOM TEXT:", text.slice(-1000));
-
   // ── Collections Holdback ─────────────────────────────────────────────────
-  for (const label of ["collections holdback","collection holdback","coll holdback","collections h/b","coll h/b","collections hb","coll hb","holdback"]) {
+  // Nissan format: "COLLECTIONS:\nHB: 1,147.00" — search for "collections:" and grab the number after it
+  for (const label of ["collections:","collections holdback","collection holdback","coll holdback","collections hb","coll hb"]) {
     const val = dollarAfter(text, label);
     // Must be a realistic holdback amount (not a sentence fragment match)
     if (val && parseFloat(val) > 0 && parseFloat(val) < 5000) {
