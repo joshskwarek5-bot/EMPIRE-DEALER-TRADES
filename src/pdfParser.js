@@ -1,14 +1,21 @@
 import * as pdfjsLib from "pdfjs-dist";
 
-// Point the worker at the bundled worker file
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
   import.meta.url
 ).toString();
 
-/**
- * Extract all text from a PDF file as a single string (all pages joined).
- */
+// Known Nissan model names — checked before anything else
+const NISSAN_MODELS = [
+  "VERSA","ROGUE","ALTIMA","SENTRA","MAXIMA","MURANO","PATHFINDER",
+  "FRONTIER","TITAN","KICKS","LEAF","ARMADA","ARIYA","NV200","NV",
+  "GT-R","JUKE","XTERRA","QUEST","CUBE","NOTE","PULSAR","STANZA",
+  "PATROL","NAVARA",
+];
+
+// Transmission tokens — stop trim parsing here
+const TRANS = ["CVT","AT","MT","DCT","AMT","4AT","5AT","6MT","4WD","AWD","2WD","FWD"];
+
 async function extractText(file) {
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
@@ -21,27 +28,14 @@ async function extractText(file) {
   return pages.join("\n");
 }
 
-/**
- * Pull the first dollar amount that appears after a label in text.
- * Returns raw numeric string like "36150.00" or null.
- */
 function dollarAfter(text, label) {
   const idx = text.toLowerCase().indexOf(label.toLowerCase());
   if (idx === -1) return null;
-  const after = text.slice(idx + label.length, idx + label.length + 200);
+  const after = text.slice(idx + label.length, idx + label.length + 300);
   const m = after.match(/\$?([\d,]+(?:\.\d{2})?)/);
   return m ? m[1].replace(/,/g, "") : null;
 }
 
-/**
- * Parse a Nissan/dealer invoice PDF and return auto-fill values.
- *
- * Returns an object with any of:
- *   vin, year, model, trim, color, stock,
- *   invoicePrice, holdback, collectionsHoldback, hasCollections
- *
- * Any field that can't be found is omitted.
- */
 export async function parseInvoicePDF(file) {
   let text;
   try {
@@ -53,77 +47,120 @@ export async function parseInvoicePDF(file) {
 
   const result = {};
 
-  // ── VIN ──────────────────────────────────────────────────────────────────
-  const vinMatch = text.match(/\b([A-HJ-NPR-Z0-9]{17})\b/);
-  if (vinMatch) result.vin = vinMatch[1];
+  // ── VIN ───────────────────────────────────────────────────────────────────
+  // Nissan invoices label it "FED VIN:" — grab that first, fall back to raw match
+  const fedVin = text.match(/FED\s+VIN[:\s]+([A-HJ-NPR-Z0-9]{17})/i);
+  const rawVin = text.match(/\b([A-HJ-NPR-Z0-9]{17})\b/);
+  const vin = fedVin ? fedVin[1] : rawVin ? rawVin[1] : null;
+  if (vin) result.vin = vin;
 
-  // ── Stock Number ─────────────────────────────────────────────────────────
-  const stockMatch = text.match(
-    /(?:stock\s*(?:no\.?|#|number)?|dealer\s*stock\s*(?:no\.?|#)?)\s*[:\-]?\s*([A-Z0-9\-]+)/i
-  );
-  if (stockMatch) result.stock = stockMatch[1].trim();
+  // ── Stock # — always last 8 chars of VIN ──────────────────────────────────
+  if (vin) result.stock = vin.slice(-8);
 
   // ── Year ─────────────────────────────────────────────────────────────────
-  const yearMatch = text.match(/\b(20\d{2}|19\d{2})\b/);
-  if (yearMatch) result.year = yearMatch[1];
-
-  // ── Model / Trim / Color ─────────────────────────────────────────────────
-  // Try to find "NISSAN <MODEL>" pattern near the top
-  const nissanModel = text.match(/NISSAN\s+([A-Z][A-Z0-9\- ]{2,20})/i);
-  if (nissanModel) {
-    const parts = nissanModel[1].trim().split(/\s+/);
-    result.model = parts[0];
-    if (parts.length > 1) result.trim = parts.slice(1).join(" ");
+  // Nissan invoices show 2-digit year in the item row: "001 25 10115 ..."
+  // Try 4-digit first, then 2-digit prefixed with 20
+  const year4 = text.match(/\b(20\d{2}|19\d{2})\b/);
+  if (year4) {
+    result.year = year4[1];
+  } else {
+    // 2-digit year in item line: "001 " then 2-digit year
+    const year2 = text.match(/\b0{0,2}1\b\s+(\d{2})\s+\d{4,}/);
+    if (year2) result.year = "20" + year2[1];
   }
 
-  // Try explicit Model label
-  const modelLabel = text.match(/\bModel[:\s]+([A-Z][A-Z0-9 \-]{2,25})/i);
-  if (!result.model && modelLabel) result.model = modelLabel[1].trim();
+  // ── Model & Trim ──────────────────────────────────────────────────────────
+  // Strategy: search for known Nissan model names in the text (uppercase).
+  // After the model name, collect words until we hit a transmission code or a number.
+  const upperText = text.toUpperCase();
+  for (const model of NISSAN_MODELS) {
+    // Must be a whole word match
+    const modelRe = new RegExp(`\\b${model}\\b`);
+    const idx = upperText.search(modelRe);
+    if (idx === -1) continue;
 
-  // Color
-  const colorMatch = text.match(
-    /(?:exterior\s+color|color)[:\s]+([A-Za-z][A-Za-z0-9 \/]{2,30}?)(?:\s{2,}|\n|,)/i
-  );
-  if (colorMatch) result.color = colorMatch[1].trim();
+    result.model = model;
 
-  // ── Invoice Price ("Pay This Amount" or "Total Invoice") ─────────────────
+    // Grab the substring after the model name and parse trim
+    const after = upperText.slice(idx + model.length).trim();
+    const tokens = after.split(/\s+/);
+    const trimParts = [];
+    for (const tok of tokens) {
+      if (!tok || /^\d/.test(tok)) break;          // stop at numbers
+      if (TRANS.includes(tok)) break;               // stop at transmission
+      if (/^\$/.test(tok)) break;                   // stop at price
+      if (tok.length > 12) break;                   // stop at long words (descriptions)
+      trimParts.push(tok);
+      if (trimParts.length >= 3) break;             // max 3 trim tokens
+    }
+    if (trimParts.length) result.trim = trimParts.join(" ");
+    break;
+  }
+
+  // ── Color ─────────────────────────────────────────────────────────────────
+  // Nissan invoice format: after the suggested price, color appears as
+  // "GUN METALL KADG" — color name (1-3 words) followed by a 4-letter color code.
+  // Pattern: look for [WORD(S)] [4-LETTER-CODE] near the item price line.
+  // The 4-letter color code is all caps, exactly 4 chars, not a common word.
+  const colorBlockRe = /([A-Z][A-Z ]{2,20}?)\s+([A-Z]{4})\s*(?:\n|\s{2,}|\d)/g;
+  // Common 4-letter codes to skip (not color codes)
+  const skipCodes = new Set(["ITEM","YEAR","PART","DISC","CODE","PAGE","SHIP","DRAFT","TYPE","BACK","TERM","DATE","AMER","CORP","PKWY","IRVI","COLF","LAKW","EMPI","NISS","NORT","INCA","UNIT"]);
+  let colorMatch;
+  while ((colorBlockRe.lastIndex = 0, colorMatch = colorBlockRe.exec(upperText)) !== null) {
+    const code = colorMatch[2];
+    if (skipCodes.has(code)) { colorBlockRe.lastIndex++; continue; }
+    // Color codes are typically 4 letters and appear after a price in the item row
+    // Make sure this is near a dollar amount (within 200 chars before)
+    const before = upperText.slice(Math.max(0, colorMatch.index - 200), colorMatch.index);
+    if (/\d{2,3},\d{3}\.\d{2}/.test(before) || /\d{4,5}\.\d{2}/.test(before)) {
+      // Capitalize properly: "GUN METALL" → "Gun Metallic" is too aggressive; keep as-is but trim
+      result.color = colorMatch[1].trim();
+      break;
+    }
+    colorBlockRe.lastIndex++;
+  }
+
+  // Fallback color: look for known color names if the above didn't work
+  if (!result.color) {
+    const knownColors = ["GUN METALL","SUPER BLACK","PEARL WHITE","BRILLIANT SILVER","DEEP BLUE","CAYENNE RED","STORM BLUE","ELECTRIC BLUE","MONARCH ORANGE","GLACIER WHITE","MAGNETIC BLACK","CHAMPAGNE SILVER","COULIS RED","SCARLET EMBER","BAJA STORM","ASPEN WHITE","FRESH POWDER","BOULDER GREY","MIDNIGHT STAR","STROM BLUE"];
+    for (const c of knownColors) {
+      if (upperText.includes(c)) { result.color = c.charAt(0) + c.slice(1).toLowerCase(); break; }
+    }
+  }
+
+  // ── Invoice Price — "THIS AMOUNT DUE" ────────────────────────────────────
   const payLabels = [
+    "this amount due",
     "pay this amount",
     "total invoice price",
     "total invoice",
     "invoice total",
     "amount due",
-    "net price",
   ];
   for (const label of payLabels) {
     const val = dollarAfter(text, label);
-    if (val) {
-      result.invoicePrice = val;
-      break;
-    }
+    if (val) { result.invoicePrice = val; break; }
   }
 
   // ── Collections Holdback ─────────────────────────────────────────────────
-  const chLabels = [
-    "collections holdback",
-    "collection holdback",
-    "holdback collections",
-  ];
+  const chLabels = ["collections holdback","collection holdback","holdback collections","collections,rebates,holdback"];
   for (const label of chLabels) {
+    // Only count it if there's an actual dollar figure after the label
     const val = dollarAfter(text, label);
-    if (val) {
+    if (val && parseFloat(val) > 0 && parseFloat(val) < 5000) {
       result.collectionsHoldback = val;
       result.hasCollections = true;
       break;
     }
   }
 
-  // ── Regular Holdback (if no collections holdback) ────────────────────────
+  // ── Regular Holdback ─────────────────────────────────────────────────────
   if (!result.hasCollections) {
-    const hbLabels = ["holdback", "hold back", "dealer holdback"];
+    const hbLabels = ["holdback amount","dealer holdback","holdback"];
     for (const label of hbLabels) {
       const val = dollarAfter(text, label);
-      if (val) {
+      // Skip holdback if the number is clearly part of a sentence (very large or 0)
+      if (val && parseFloat(val) > 0 && parseFloat(val) < 10000) {
         result.holdback = val;
         break;
       }
