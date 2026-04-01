@@ -450,7 +450,10 @@ export default function DealerTradeApp() {
     setSending(true);
     try {
       const mergedBytes = await buildMergedPDFBytes(d, outFile, inFile);
-      const pdfBase64 = btoa(String.fromCharCode(...new Uint8Array(mergedBytes)));
+      const bytes = new Uint8Array(mergedBytes);
+      let binary = "";
+      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+      const pdfBase64 = btoa(binary);
       const filename = `dealer-trade_${d.tradeDate}_${(d.outModel||"OUT").replace(/\s+/g,"-")}_${(d.inModel||"IN").replace(/\s+/g,"-")}.pdf`;
       const oC = calcCheck(d.outInvoice, d.outHoldback, d.outCollectionsHoldback, d.outHasCollections);
       const iC = calcCheck(d.inInvoice,  d.inHoldback,  d.inCollectionsHoldback,  d.inHasCollections);
