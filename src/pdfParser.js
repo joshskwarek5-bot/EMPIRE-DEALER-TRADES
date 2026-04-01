@@ -129,25 +129,20 @@ export async function parseInvoicePDF(file) {
     break;
   }
 
-  // DEBUG — log full extracted text
-  console.log("FULL PDF TEXT:", text);
-
   // ── Color ─────────────────────────────────────────────────────────────────
-  // Nissan invoice: "COLOR" label on its own line, value on the next line
-  const lines = text.split("\n");
-  for (let i = 0; i < lines.length - 1; i++) {
-    if (lines[i].trim().toUpperCase() === "COLOR") {
-      const val = lines[i + 1].trim();
-      if (val && val.length > 1 && /^[A-Za-z]/.test(val)) {
-        result.color = val;
-        break;
+  // Nissan invoice item line: "001 26 ... MODEL  80,550.00  EVEREST WH  75,020.00"
+  // Color is the text that appears between the two prices (list price and net price)
+  const itemLine = text.split("\n").find((l) => /^\s*001\s/.test(l));
+  if (itemLine) {
+    const prices = [...itemLine.matchAll(/\d{2,3},\d{3}\.\d{2}/g)];
+    if (prices.length >= 2) {
+      const between = itemLine
+        .slice(prices[0].index + prices[0][0].length, prices[1].index)
+        .trim();
+      if (between && /^[A-Za-z]/.test(between)) {
+        result.color = between;
       }
     }
-  }
-  // Fallback: "COLOR" appears inline followed by the color name on the same line
-  if (!result.color) {
-    const colorLine = upper.match(/\bCOLOR[:\s]+([A-Z][A-Z ]{2,25}?)(?:\s{2,}|\n|$)/);
-    if (colorLine) result.color = colorLine[1].trim();
   }
 
   // ── Invoice price — "THIS AMOUNT DUE" ────────────────────────────────────
