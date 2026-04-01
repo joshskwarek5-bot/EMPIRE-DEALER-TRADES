@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../convex/_generated/api";
 import jsPDF from "jspdf";
 import { PDFDocument } from "pdf-lib";
@@ -129,6 +129,7 @@ export default function DealerTradeApp() {
   const [editingId, setEditingId] = useState(null);
   const [toast, setToast] = useState(null);
   const [parsing, setParsing] = useState({ out: false, in: false });
+  const [sending, setSending] = useState(false);
   const [outFile, setOutFile] = useState(null);
   const [inFile, setInFile] = useState(null);
   const outFileRef = useRef();
@@ -139,6 +140,7 @@ export default function DealerTradeApp() {
   const updateTrade = useMutation(api.trades.update);
   const removeTrade = useMutation(api.trades.remove);
   const generateUploadUrl = useMutation(api.files.generateUploadUrl);
+  const sendEmail = useAction(api.email.sendTradeEmail);
 
   const showToast = (msg, err) => {
     setToast({ msg, err });
@@ -395,27 +397,24 @@ export default function DealerTradeApp() {
     return doc;
   };
 
-  const downloadPDF = async (d = form, oFile = outFile, iFile = inFile) => {
+  const buildMergedPDFBytes = async (d, oFile, iFile) => {
     const oC = calcCheck(d.outInvoice, d.outHoldback, d.outCollectionsHoldback, d.outHasCollections);
     const iC = calcCheck(d.inInvoice,  d.inHoldback,  d.inCollectionsHoldback,  d.inHasCollections);
-
-    // Get trade form as raw bytes from jsPDF
     const tradeBytes = buildPDFDoc(d, oC, iC).output("arraybuffer");
-
-    // Merge trade form + any uploaded invoices into one PDF
     const merged = await PDFDocument.create();
-
     const addPdf = async (bytes) => {
       const src = await PDFDocument.load(bytes);
       const pages = await merged.copyPages(src, src.getPageIndices());
       pages.forEach((p) => merged.addPage(p));
     };
-
     await addPdf(tradeBytes);
     if (oFile) await addPdf(await oFile.arrayBuffer());
     if (iFile) await addPdf(await iFile.arrayBuffer());
+    return merged.save();
+  };
 
-    const mergedBytes = await merged.save();
+  const downloadPDF = async (d = form, oFile = outFile, iFile = inFile) => {
+    const mergedBytes = await buildMergedPDFBytes(d, oFile, iFile);
     const blob = new Blob([mergedBytes], { type: "application/pdf" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -445,6 +444,36 @@ export default function DealerTradeApp() {
     ].filter(Boolean).join("\n");
     window.open(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`,"_self");
     showToast("Merged PDF downloaded — attach it to the email");
+  };
+
+  const handleSubmitTrade = async (d = form) => {
+    setSending(true);
+    try {
+      const mergedBytes = await buildMergedPDFBytes(d, outFile, inFile);
+      const pdfBase64 = btoa(String.fromCharCode(...new Uint8Array(mergedBytes)));
+      const filename = `dealer-trade_${d.tradeDate}_${(d.outModel||"OUT").replace(/\s+/g,"-")}_${(d.inModel||"IN").replace(/\s+/g,"-")}.pdf`;
+      const oC = calcCheck(d.outInvoice, d.outHoldback, d.outCollectionsHoldback, d.outHasCollections);
+      const iC = calcCheck(d.inInvoice,  d.inHoldback,  d.inCollectionsHoldback,  d.inHasCollections);
+      const subject = `Dealer Trade: ${d.outYear} ${d.outModel} ${d.outTrim} ↔ ${d.inYear} ${d.inModel} ${d.inTrim} | ${d.tradeDate}`;
+      const body = [
+        `DEALER TRADE FORM — Empire Lakewood Nissan`,`Date: ${d.tradeDate}`,
+        `Manager: ${d.manager}  |  Ours/Theirs: ${d.oursTheirs}`,
+        `Dealer: ${d.dealerName}  |  Contact: ${d.dealerContact}  |  Code: ${d.dealerCode}`,``,
+        `--- OUTGOING ---`,`Stock: ${d.outStock}  |  ${d.outYear} ${d.outModel} ${d.outTrim}`,`VIN: ${d.outVIN}`,
+        d.outHasCollections&&d.outCollectionsHoldback?`Collections HB: $${d.outCollectionsHoldback} × 3 = ${fmtCurrency(3*parseNum(d.outCollectionsHoldback))}`:`Holdback: $${d.outHoldback}`,
+        `Invoice: $${d.outInvoice}`,`NET CHECK: ${fmtCurrency(oC)}`,``,
+        `--- INCOMING ---`,`Stock: ${d.inStock}  |  ${d.inYear} ${d.inModel} ${d.inTrim}`,`VIN: ${d.inVIN}`,
+        d.inHasCollections&&d.inCollectionsHoldback?`Collections HB: $${d.inCollectionsHoldback} × 3 = ${fmtCurrency(3*parseNum(d.inCollectionsHoldback))}`:`Holdback: $${d.inHoldback}`,
+        `Invoice: $${d.inInvoice}`,`NET CHECK: ${fmtCurrency(iC)}`,
+        d.notes?`\nNOTES: ${d.notes}`:"",
+      ].filter(Boolean).join("\n");
+      await sendEmail({ subject, body, pdfBase64, filename });
+      showToast("Trade submitted!");
+    } catch (e) {
+      showToast(`Send failed: ${e.message}`, true);
+    } finally {
+      setSending(false);
+    }
   };
 
   // Simple inline input (not a component — avoids remount issues)
@@ -601,6 +630,7 @@ export default function DealerTradeApp() {
         <button style={s.btnPrimary} onClick={save}>{editingId?"Update Trade":"Save Trade"}</button>
         <button style={s.btnBlue}    onClick={()=>downloadPDF()}>Download PDF</button>
         <button style={s.btnGreen}   onClick={()=>handleEmail()}>Email to Office</button>
+        <button style={{ ...s.btnAmber, ...(sending?{opacity:0.6,cursor:"wait"}:{}) }} onClick={()=>handleSubmitTrade()} disabled={sending}>{sending?"Sending…":"Submit Trade"}</button>
         <button style={s.btnDanger}  onClick={clearForm}>Clear</button>
       </div>
 
@@ -695,6 +725,7 @@ const s = {
   btnPrimary:{ fontFamily:"'Outfit',sans-serif", fontWeight:500, fontSize:14, background:"#2563eb", color:"white", border:"none", borderRadius:10, padding:"12px 22px", cursor:"pointer" },
   btnBlue:   { fontFamily:"'Outfit',sans-serif", fontWeight:500, fontSize:14, background:"#0f172a", color:"white", border:"none", borderRadius:10, padding:"12px 22px", cursor:"pointer" },
   btnGreen:  { fontFamily:"'Outfit',sans-serif", fontWeight:500, fontSize:14, background:"#16a34a", color:"white", border:"none", borderRadius:10, padding:"12px 22px", cursor:"pointer" },
+  btnAmber:  { fontFamily:"'Outfit',sans-serif", fontWeight:500, fontSize:14, background:"#d97706", color:"white", border:"none", borderRadius:10, padding:"12px 22px", cursor:"pointer" },
   btnDanger: { fontFamily:"'Outfit',sans-serif", fontWeight:500, fontSize:14, background:"#ffffff", color:"#dc2626", border:"1px solid #fecaca", borderRadius:10, padding:"12px 22px", cursor:"pointer" },
   tradeItem: { background:"#ffffff", border:"1px solid #e5e7eb", borderRadius:12, padding:"14px 18px", marginBottom:8, display:"flex", alignItems:"center", gap:14, cursor:"pointer", transition:"all 0.2s ease" },
   smallBtn:    { fontFamily:"'Outfit',sans-serif", fontSize:11, fontWeight:500, background:"#f3f4f6", border:"1px solid #e5e7eb", borderRadius:8, color:"#6b7280", padding:"5px 10px", cursor:"pointer" },
