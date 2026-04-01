@@ -129,9 +129,8 @@ export async function parseInvoicePDF(file) {
     break;
   }
 
-  // DEBUG
-  const colorIdx = upper.indexOf("COLOR");
-  if (colorIdx !== -1) console.log("COLOR CONTEXT:", JSON.stringify(text.slice(Math.max(0, colorIdx-30), colorIdx+100)));
+  // DEBUG — log full extracted text
+  console.log("FULL PDF TEXT:", text);
 
   // ── Color ─────────────────────────────────────────────────────────────────
   // Nissan invoice: "COLOR" label on its own line, value on the next line
