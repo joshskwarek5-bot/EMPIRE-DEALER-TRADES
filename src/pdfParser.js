@@ -130,26 +130,21 @@ export async function parseInvoicePDF(file) {
   }
 
   // ── Color ─────────────────────────────────────────────────────────────────
-  // Nissan invoice format: "GUN METALL KADG" — color name then 4-letter code
-  // The 4-letter code always immediately follows the color name on the same row
-  const skipCodes = new Set([
-    "ITEM","YEAR","PART","DISC","CODE","PAGE","SHIP","DRAFT","TYPE","BACK",
-    "TERM","DATE","AMER","CORP","PKWY","IRVI","COLF","LAKW","EMPI","NISS",
-    "NORT","INCA","UNIT","UPON","PAYM","OUNT","TITL","MERCH","DESC","LIST",
-  ]);
-
-  // Search each line for a color pattern: words followed by a 4-letter code followed by whitespace/end/digit
-  for (const line of text.split("\n")) {
-    const uLine = line.toUpperCase();
-    // Match: 1-3 uppercase words followed by a standalone 4-letter ALL-CAPS code
-    const m = uLine.match(/\b([A-Z][A-Z ]{2,20}?)\s+([A-Z]{4})\b/);
-    if (!m) continue;
-    const code = m[2];
-    if (skipCodes.has(code)) continue;
-    // Verify this line also has a price (confirms it's the vehicle description row)
-    if (!/\d{4,5}\.\d{2}/.test(line) && !/\d{2,3},\d{3}\.\d{2}/.test(line)) continue;
-    result.color = m[1].trim();
-    break;
+  // Nissan invoice: "COLOR" label on its own line, value on the next line
+  const lines = text.split("\n");
+  for (let i = 0; i < lines.length - 1; i++) {
+    if (lines[i].trim().toUpperCase() === "COLOR") {
+      const val = lines[i + 1].trim();
+      if (val && val.length > 1 && /^[A-Za-z]/.test(val)) {
+        result.color = val;
+        break;
+      }
+    }
+  }
+  // Fallback: "COLOR" appears inline followed by the color name on the same line
+  if (!result.color) {
+    const colorLine = upper.match(/\bCOLOR[:\s]+([A-Z][A-Z ]{2,25}?)(?:\s{2,}|\n|$)/);
+    if (colorLine) result.color = colorLine[1].trim();
   }
 
   // ── Invoice price — "THIS AMOUNT DUE" ────────────────────────────────────
