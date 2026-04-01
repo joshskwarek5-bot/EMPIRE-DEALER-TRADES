@@ -499,7 +499,8 @@ export default function DealerTradeApp() {
       }
       showToast("Trade submitted and saved!");
     } catch (e) {
-      showToast(`Send failed: ${e.message}`, true);
+      const msg = e?.data ?? e?.message ?? String(e);
+      showToast(`Send failed: ${msg}`, true);
     } finally {
       setSending(false);
     }
