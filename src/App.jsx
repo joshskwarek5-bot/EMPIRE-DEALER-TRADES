@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../convex/_generated/api";
 import jsPDF from "jspdf";
+import { PDFDocument } from "pdf-lib";
 import { parseInvoicePDF } from "./pdfParser";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -394,19 +395,41 @@ export default function DealerTradeApp() {
     return doc;
   };
 
-  const downloadPDF = (d = form) => {
+  const downloadPDF = async (d = form, oFile = outFile, iFile = inFile) => {
     const oC = calcCheck(d.outInvoice, d.outHoldback, d.outCollectionsHoldback, d.outHasCollections);
     const iC = calcCheck(d.inInvoice,  d.inHoldback,  d.inCollectionsHoldback,  d.inHasCollections);
-    buildPDFDoc(d, oC, iC).save(`dealer-trade_${d.tradeDate}_${(d.outModel||"OUT").replace(/\s+/g,"-")}_${(d.inModel||"IN").replace(/\s+/g,"-")}.pdf`);
+
+    // Get trade form as raw bytes from jsPDF
+    const tradeBytes = buildPDFDoc(d, oC, iC).output("arraybuffer");
+
+    // Merge trade form + any uploaded invoices into one PDF
+    const merged = await PDFDocument.create();
+
+    const addPdf = async (bytes) => {
+      const src = await PDFDocument.load(bytes);
+      const pages = await merged.copyPages(src, src.getPageIndices());
+      pages.forEach((p) => merged.addPage(p));
+    };
+
+    await addPdf(tradeBytes);
+    if (oFile) await addPdf(await oFile.arrayBuffer());
+    if (iFile) await addPdf(await iFile.arrayBuffer());
+
+    const mergedBytes = await merged.save();
+    const blob = new Blob([mergedBytes], { type: "application/pdf" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `dealer-trade_${d.tradeDate}_${(d.outModel||"OUT").replace(/\s+/g,"-")}_${(d.inModel||"IN").replace(/\s+/g,"-")}.pdf`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   const handleEmail = async (d = form) => {
     const oC = calcCheck(d.outInvoice, d.outHoldback, d.outCollectionsHoldback, d.outHasCollections);
     const iC = calcCheck(d.inInvoice,  d.inHoldback,  d.inCollectionsHoldback,  d.inHasCollections);
-    buildPDFDoc(d, oC, iC).save(`dealer-trade_${d.tradeDate}_${(d.outModel||"OUT").replace(/\s+/g,"-")}.pdf`);
-    const dlBlob = (blob, name) => { const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000); };
-    if (outFile) dlBlob(outFile, `invoice-outgoing-${d.outVIN||"out"}.pdf`);
-    if (inFile)  dlBlob(inFile,  `invoice-incoming-${d.inVIN||"in"}.pdf`);
+    // Download one merged PDF (trade form + invoices)
+    await downloadPDF(d, outFile, inFile);
     const subject = `Dealer Trade: ${d.outYear} ${d.outModel} ${d.outTrim} ↔ ${d.inYear} ${d.inModel} ${d.inTrim} | ${d.tradeDate}`;
     const body = [
       `DEALER TRADE FORM — Empire Lakewood Nissan`,`Date: ${d.tradeDate}`,
@@ -421,7 +444,7 @@ export default function DealerTradeApp() {
       d.notes?`\nNOTES: ${d.notes}`:"",``,`(Attach the downloaded PDFs before sending)`,
     ].filter(Boolean).join("\n");
     window.open(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`,"_self");
-    showToast("PDFs downloaded — attach them to the email");
+    showToast("Merged PDF downloaded — attach it to the email");
   };
 
   // Simple inline input (not a component — avoids remount issues)
