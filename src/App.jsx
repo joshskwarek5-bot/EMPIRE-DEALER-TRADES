@@ -311,7 +311,7 @@ export default function DealerTradeApp() {
 
     // TRADE INFO
     sectionHeader("Trade Info", accent);
-    const infoFields = [["Manager",d.manager],["Ours / Theirs",d.oursTheirs],["Selling CA",d.sellingCA],["Dealer Name",d.dealerName],["Contact",d.dealerContact],["Dealer Code",d.dealerCode]];
+    const infoFields = [["Manager",d.manager],["Ours / Theirs",d.oursTheirs],["Dealer Name",d.dealerName],["Contact",d.dealerContact],["Dealer Code",d.dealerCode]];
     const colW3 = (W - margin*2)/3;
     infoFields.forEach(([lbl,val],i) => lv(lbl,val, margin+(i%3)*colW3, y+Math.floor(i/3)*30, colW3-10));
     y += Math.ceil(infoFields.length/3)*30 + 12;
@@ -411,7 +411,7 @@ export default function DealerTradeApp() {
     const subject = `Dealer Trade: ${d.outYear} ${d.outModel} ${d.outTrim} ↔ ${d.inYear} ${d.inModel} ${d.inTrim} | ${d.tradeDate}`;
     const body = [
       `DEALER TRADE FORM — Empire Lakewood Nissan`,`Date: ${d.tradeDate}`,
-      `Manager: ${d.manager}  |  Ours/Theirs: ${d.oursTheirs}  |  Selling CA: ${d.sellingCA}`,
+      `Manager: ${d.manager}  |  Ours/Theirs: ${d.oursTheirs}`,
       `Dealer: ${d.dealerName}  |  Contact: ${d.dealerContact}  |  Code: ${d.dealerCode}`,``,
       `--- OUTGOING ---`,`Stock: ${d.outStock}  |  ${d.outYear} ${d.outModel} ${d.outTrim}  |  Color: ${d.outColor}`,`VIN: ${d.outVIN}`,
       d.outHasCollections&&d.outCollectionsHoldback?`Collections HB: $${d.outCollectionsHoldback} × 3 = ${fmtCurrency(3*parseNum(d.outCollectionsHoldback))}`:`Holdback: $${d.outHoldback}`,
@@ -465,7 +465,6 @@ export default function DealerTradeApp() {
               <option value="Ours">Ours</option>
             </select>
           </Field>
-          <Field label="Selling CA">{inp("sellingCA","Josh")}</Field>
           <Field label="Dealer Name">{inp("dealerName","Empire")}</Field>
           <Field label="Contact">{inp("dealerContact","Dave")}</Field>
           <Field label="Dealer Code">{inp("dealerCode","5356",true)}</Field>
