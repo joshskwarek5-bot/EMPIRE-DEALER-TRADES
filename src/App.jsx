@@ -471,7 +471,33 @@ export default function DealerTradeApp() {
         d.notes?`\nNOTES: ${d.notes}`:"",
       ].filter(Boolean).join("\n");
       await sendEmail({ subject, body, pdfBase64, filename });
-      showToast("Trade submitted!");
+      // Auto-save the trade
+      const payload = {
+        tradeDate: d.tradeDate, manager: d.manager, oursTheirs: d.oursTheirs,
+        sellingCA: d.sellingCA, dealerName: d.dealerName, dealerContact: d.dealerContact,
+        dealerCode: d.dealerCode,
+        outStock: d.outStock, outYear: d.outYear, outModel: d.outModel,
+        outTrim: d.outTrim, outColor: d.outColor, outVIN: d.outVIN,
+        outInvoice: d.outInvoice, outHoldback: d.outHoldback,
+        outCollectionsHoldback: d.outCollectionsHoldback || undefined,
+        outHasCollections: d.outHasCollections || undefined,
+        outAccessories: d.outAccessories,
+        inStock: d.inStock, inYear: d.inYear, inModel: d.inModel,
+        inTrim: d.inTrim, inColor: d.inColor, inVIN: d.inVIN,
+        inInvoice: d.inInvoice, inHoldback: d.inHoldback,
+        inCollectionsHoldback: d.inCollectionsHoldback || undefined,
+        inHasCollections: d.inHasCollections || undefined,
+        inAccessories: d.inAccessories, notes: d.notes,
+        outInvoiceStorageId: d.outInvoiceStorageId || undefined,
+        inInvoiceStorageId: d.inInvoiceStorageId || undefined,
+      };
+      if (editingId) {
+        await updateTrade({ id: editingId, ...payload });
+      } else {
+        const newId = await createTrade(payload);
+        setEditingId(newId);
+      }
+      showToast("Trade submitted and saved!");
     } catch (e) {
       showToast(`Send failed: ${e.message}`, true);
     } finally {
@@ -632,8 +658,7 @@ export default function DealerTradeApp() {
       <div style={s.btnRow}>
         <button style={s.btnPrimary} onClick={save}>{editingId?"Update Trade":"Save Trade"}</button>
         <button style={s.btnBlue}    onClick={()=>downloadPDF()}>Download PDF</button>
-        <button style={s.btnGreen}   onClick={()=>handleEmail()}>Email to Office</button>
-        <button style={{ ...s.btnAmber, ...(sending?{opacity:0.6,cursor:"wait"}:{}) }} onClick={()=>handleSubmitTrade()} disabled={sending}>{sending?"Sending…":"Submit Trade"}</button>
+        <button style={{ ...s.btnGreen, ...(sending?{opacity:0.6,cursor:"wait"}:{}) }} onClick={()=>handleSubmitTrade()} disabled={sending}>{sending?"Sending…":"Submit Trade"}</button>
         <button style={s.btnDanger}  onClick={clearForm}>Clear</button>
       </div>
 

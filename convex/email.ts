@@ -25,7 +25,7 @@ export const sendTradeEmail = action({
       to,
       subject,
       text: body,
-      attachments: [{ filename, content: pdfBase64 }],
+      attachments: [{ filename, content: Buffer.from(pdfBase64, "base64") }],
     });
 
     if (error) throw new Error(error.message);
