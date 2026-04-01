@@ -17,11 +17,12 @@ const today = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
-const calcCheck = (invoice, holdback, collectionsHoldback, hasCollections) => {
+const calcCheck = (invoice, holdback, collectionsHoldback, hasCollections, accessories) => {
+  const acc = parseNum(accessories);
   if (hasCollections && collectionsHoldback && parseNum(collectionsHoldback) > 0) {
-    return parseNum(invoice) - 2 * parseNum(collectionsHoldback);
+    return parseNum(invoice) + acc - 2 * parseNum(collectionsHoldback);
   }
-  return parseNum(invoice) - parseNum(holdback);
+  return parseNum(invoice) + acc - parseNum(holdback);
 };
 
 const EMPTY = {
@@ -150,8 +151,8 @@ export default function DealerTradeApp() {
   // Single field setter — stable reference for sub-components
   const handleChange = (key, val) => setForm((p) => ({ ...p, [key]: val }));
 
-  const outCheck = calcCheck(form.outInvoice, form.outHoldback, form.outCollectionsHoldback, form.outHasCollections);
-  const inCheck  = calcCheck(form.inInvoice,  form.inHoldback,  form.inCollectionsHoldback,  form.inHasCollections);
+  const outCheck = calcCheck(form.outInvoice, form.outHoldback, form.outCollectionsHoldback, form.outHasCollections, form.outAccessories);
+  const inCheck  = calcCheck(form.inInvoice,  form.inHoldback,  form.inCollectionsHoldback,  form.inHasCollections,  form.inAccessories);
   const diff = inCheck - outCheck;
 
   // ── PDF Upload & Parse ────────────────────────────────────────────────────
@@ -385,8 +386,8 @@ export default function DealerTradeApp() {
   };
 
   const buildMergedPDFBytes = async (d, oFile, iFile) => {
-    const oC = calcCheck(d.outInvoice, d.outHoldback, d.outCollectionsHoldback, d.outHasCollections);
-    const iC = calcCheck(d.inInvoice,  d.inHoldback,  d.inCollectionsHoldback,  d.inHasCollections);
+    const oC = calcCheck(d.outInvoice, d.outHoldback, d.outCollectionsHoldback, d.outHasCollections, d.outAccessories);
+    const iC = calcCheck(d.inInvoice,  d.inHoldback,  d.inCollectionsHoldback,  d.inHasCollections,  d.inAccessories);
     const tradeBytes = buildPDFDoc(d, oC, iC).output("arraybuffer");
     const merged = await PDFDocument.create();
     const addPdf = async (bytes) => {
@@ -412,8 +413,8 @@ export default function DealerTradeApp() {
   };
 
   const handleEmail = async (d = form) => {
-    const oC = calcCheck(d.outInvoice, d.outHoldback, d.outCollectionsHoldback, d.outHasCollections);
-    const iC = calcCheck(d.inInvoice,  d.inHoldback,  d.inCollectionsHoldback,  d.inHasCollections);
+    const oC = calcCheck(d.outInvoice, d.outHoldback, d.outCollectionsHoldback, d.outHasCollections, d.outAccessories);
+    const iC = calcCheck(d.inInvoice,  d.inHoldback,  d.inCollectionsHoldback,  d.inHasCollections,  d.inAccessories);
     // Download one merged PDF (trade form + invoices)
     await downloadPDF(d, outFile, inFile);
     const subject = `Dealer Trade: ${d.outYear} ${d.outModel} ↔ ${d.inYear} ${d.inModel} | ${d.tradeDate}`;
