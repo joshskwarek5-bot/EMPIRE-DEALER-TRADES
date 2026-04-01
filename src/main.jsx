@@ -1,22 +1,14 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { ConvexProvider, ConvexReactClient } from 'convex/react';
 import DealerTradeApp from './App';
 
-// Polyfill window.storage using localStorage for standalone dev/preview
-if (!window.storage) {
-  window.storage = {
-    get: async (key) => {
-      const value = localStorage.getItem(key);
-      return value !== null ? { value } : null;
-    },
-    set: async (key, value) => {
-      localStorage.setItem(key, value);
-    },
-  };
-}
+const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL);
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <DealerTradeApp />
+    <ConvexProvider client={convex}>
+      <DealerTradeApp />
+    </ConvexProvider>
   </React.StrictMode>
 );
